@@ -4,30 +4,37 @@ using System.Threading.Tasks;
 using HtmlAgilityPack;
 using Microsoft.SemanticKernel.Memory;
 using System.Collections.Generic;
+using Microsoft.Extensions.VectorData;
+using Microsoft.SemanticKernel.Embeddings;
 
 #pragma warning disable SKEXP0001
 namespace RetrievalAugmentedGeneration.JLDocs
 {
     public class JLDocsImporterFromUrls
     {
-        private readonly ISemanticTextMemory memory;
+        private readonly IVectorStoreRecordCollection<string, JLDocsVectorEntity> vector;
+        private readonly ITextEmbeddingGenerationService? embeddingGenerationService;
         private readonly List<string> urls;
 
-        public JLDocsImporterFromUrls(ISemanticTextMemory memory, List<string> urls)
+        public JLDocsImporterFromUrls(ITextEmbeddingGenerationService? embeddingGenerationService, IVectorStoreRecordCollection<string, JLDocsVectorEntity> vector, List<string> urls)
         {
-            this.memory = memory;
+            this.embeddingGenerationService = embeddingGenerationService;
+            this.vector = vector;
             this.urls = urls;
         }
 
         public async Task Import()
         {
-            foreach (var url in urls)
+            for (int i = 0; i < urls.Count; i++)
             {
+                var url = urls[i];
+                Console.WriteLine($"Processing URL {i + 1}/{urls.Count}: {url}");
+
                 var content = await FetchPageContent(url);
 
                 if (content != null)
                 {
-                    await ExtractContentAndSave(url, content);
+                    await ExtractContentAndSave(url, content, i + 1);
                 }
             }
         }
@@ -47,7 +54,7 @@ namespace RetrievalAugmentedGeneration.JLDocs
             }
         }
 
-        private async Task ExtractContentAndSave(string url, string htmlContent)
+        private async Task ExtractContentAndSave(string url, string htmlContent, int index)
         {
             var doc = new HtmlDocument();
             doc.LoadHtml(htmlContent);
@@ -65,7 +72,7 @@ namespace RetrievalAugmentedGeneration.JLDocs
                     string description = "Content extracted from content_container " + parts[parts.Length - 1]; // Optional description
 
                     // Save to memory
-                    await WriteMemoryIfNeeded(sectionId, contentText, description);
+                    await WriteMemoryIfNeeded(sectionId, contentText, description, index);
                 }
                 else
                 {
@@ -78,14 +85,22 @@ namespace RetrievalAugmentedGeneration.JLDocs
             }
         }
 
-        private async Task<bool> WriteMemoryIfNeeded(string contentId, string content, string contentDescription, int retryCount = 0)
+        private async Task<bool> WriteMemoryIfNeeded(string contentId, string contentText, string contentDescription, int index, int retryCount = 0)
         {
             if (!string.IsNullOrWhiteSpace(contentId))
             {
                 try
                 {
                     Console.WriteLine($"Saving: {contentId}");
-                    await memory.SaveInformationAsync("JLDocs", id: contentId, text: content, description: contentDescription, additionalMetadata: contentId);
+                    var vectorEntity = await embeddingGenerationService.GenerateEmbeddingAsync(contentText.ToString());
+  
+                    await vector.UpsertAsync(new JLDocsVectorEntity
+                    {
+                        Id = index.ToString(),
+                        Url = contentId,
+                        Description = contentDescription,
+                        DescriptionEmbedding = vectorEntity,
+                    });
                 }
                 catch (Exception e)
                 {
@@ -93,7 +108,14 @@ namespace RetrievalAugmentedGeneration.JLDocs
                     await Task.Delay(30000);
                     if (retryCount < 3)
                     {
-                        await WriteMemoryIfNeeded(contentId, content, contentDescription, retryCount + 1);
+                        var vectorEntity = await embeddingGenerationService.GenerateEmbeddingAsync(contentText.ToString());
+                        await vector.UpsertAsync(new JLDocsVectorEntity
+                        {
+                            Id = index.ToString(),
+                            Url = contentId,
+                            Description = contentDescription,
+                            DescriptionEmbedding = vectorEntity,
+                        });
                     }
                 }
 
