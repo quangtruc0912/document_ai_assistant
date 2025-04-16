@@ -65,6 +65,19 @@ The project uses:
 - Requires internet connection for Azure services
 - Vector search threshold set to 0.8 for relevance
 
+## To-Do
+
+- [ ] Implement conversation history persistence
+- [ ] Add unit tests and integration tests
+- [ ] Implement proper dependency injection
+- [ ] Add error handling and retry mechanisms for Azure services
+- [ ] Create a proper logging system
+- [ ] Implement caching for frequently asked questions
+- [ ] Add support for user feedback and response rating
+- [ ] Implement analytics for usage patterns
+- [ ] Add support for voice input/output
+- [ ] Add support for file-based documentation import
+
 ## Security Notes
 
 - API keys and connection strings should be stored securely
