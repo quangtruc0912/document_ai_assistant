@@ -61,16 +61,14 @@ const bool importData = false;
 const string vectorStoreCollection = "jldocs";
 if (importData)
 {
-
     string filePath = @"C:\Urls\urls.txt";
     string jsonContent = File.ReadAllText(filePath);
     List<string> urls = JsonSerializer.Deserialize<List<string>>(jsonContent);
     await new JLDocsImporterFromUrls(embeddingGenerationService, collection, urls).Import();
 }
 
-// //NEW
-kernel.ImportPluginFromObject(new JLDocsPlugin(embeddingGenerationService, vectorStoreCollection));
-
+// Import the JLDocs plugin
+kernel.ImportPluginFromObject(new JLDocsPlugin(embeddingGenerationService, collection));
 
 var agent = new ChatCompletionAgent
 {
@@ -95,6 +93,7 @@ var agent = new ChatCompletionAgent
 };
 
 
+var history = new ChatHistory();
 
 Console.OutputEncoding = Encoding.UTF8;
 while (true)
@@ -105,8 +104,12 @@ while (true)
 
     try
     {
-        string[] searchResultData = await RagSearch(question);
-        var history = new ChatHistory();
+        var arguments = new KernelArguments
+        {
+            ["input"] = question
+        };
+        string[] searchResultData = await kernel.InvokeAsync<string[]>("JLDocsPlugin", "search_joblogic_documentation", arguments);
+
         history.AddUserMessage($"Info that match : {string.Join($"{Environment.NewLine}***{Environment.NewLine}", searchResultData)}");
         history.AddUserMessage(question);
         await foreach (var response in agent.InvokeStreamingAsync(history))

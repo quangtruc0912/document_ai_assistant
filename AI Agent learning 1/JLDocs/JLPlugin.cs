@@ -1,6 +1,8 @@
 ﻿using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.SemanticKernel.Memory;
+using Microsoft.Extensions.VectorData;
+using System.ComponentModel;
 
 namespace RetrievalAugmentedGeneration.JLDocs;
 
@@ -8,24 +10,35 @@ namespace RetrievalAugmentedGeneration.JLDocs;
 
 
 //THIS COULD BE RETREIVE DATA/CALL FUNCTION
-public class JLDocsPlugin(ITextEmbeddingGenerationService? embeddingGenerationService, string collection)
+public class JLDocsPlugin(ITextEmbeddingGenerationService? embeddingGenerationService, IVectorStoreRecordCollection<string, JLDocsVectorEntity> collection)
 {
-    // [KernelFunction("get_informantion_about_joblogic")]
-    // public async Task<string[]> Get(string question)
-    // {
-    //     Console.ForegroundColor = ConsoleColor.Green;
-    //     Console.WriteLine("Plugin Called with question: " + question);
-    //     Console.ForegroundColor = ConsoleColor.White;
+    private readonly ITextEmbeddingGenerationService? _embeddingGenerationService = embeddingGenerationService;
+    private readonly IVectorStoreRecordCollection<string, JLDocsVectorEntity> _collection = collection;
 
-    //     var memories = textMemory.SearchAsync(collection, question, limit: 3, minRelevanceScore: 0.75);
-    //     var list = new List<string>();
-    //     await foreach (var memory in memories)
-    //     {
-    //         list.Add(memory.Metadata.Text + $" [More Info link: {memory.Metadata.AdditionalMetadata}]");
-    //     }
+    [KernelFunction("search_joblogic_documentation")]
+    [Description("Searches for relevant Joblogic documentation using RAG")]
+    public async Task<string[]> SearchDocsAsync(
+        [Description("The input query to search for in Joblogic documentation")] string input)
+    {
+        if (_embeddingGenerationService == null)
+        {
+            throw new InvalidOperationException("Embedding generation service is not initialized");
+        }
 
-    //     return list.ToArray();
-    // }
+        List<string> searchResults = new List<string>();
+        ReadOnlyMemory<float> searchVector = await _embeddingGenerationService.GenerateEmbeddingAsync(input);
+        var searchResult = await _collection.VectorizedSearchAsync(searchVector, new()
+        {
+            Top = 3
+        });
+
+        await foreach (var record in searchResult.Results.Where(x => x.Score > 0.8))
+        {
+            searchResults.Add(record.Record.Description);
+        }
+
+        return searchResults.ToArray();
+    }
 
     [KernelFunction("suggest_call_joblogic_support_team_with_question")]
     public void CallSupportTeam(string question)
