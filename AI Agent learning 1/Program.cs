@@ -69,7 +69,7 @@ if (importData)
 }
 
 // //NEW
-// kernel.ImportPluginFromObject(new JLDocsPlugin(semanticTextMemory, vectorStoreCollection));
+kernel.ImportPluginFromObject(new JLDocsPlugin(embeddingGenerationService, vectorStoreCollection));
 
 
 var agent = new ChatCompletionAgent
@@ -80,7 +80,8 @@ var agent = new ChatCompletionAgent
                    You are a Joblogic Agent that can exchange pleasantries and can answer questions about how to use Joblogic app via its documentation.
                    Please only used information from memory plugins but please ask all of them for data
                    Please include all 'More info links' used at the bottom of the answer
-                   Please only answer questions about Joblogic. If you are ask about anything else please say 'I can only answer questions about Joblogic' and if you do not know answer 'I do not know 😔'
+                   Please only answer questions about Joblogic. If you are ask about anything else please say 'I can only answer questions about Joblogic'
+                   If dont know the answer please say 'I dont know the answer to that question' and call the support team with the question
                    """,
 
     HistoryReducer = new ChatHistoryTruncationReducer(1),
